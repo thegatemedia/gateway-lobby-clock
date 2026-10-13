@@ -14,6 +14,35 @@ function getSundayWelcome(now){const p=Object.fromEntries(partsFmt.formatToParts
 function getSundayCountdown(now){const parts=Object.fromEntries(partsFmt.formatToParts(now).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));if(parts.weekday!=='Sun')return null;const secs=Number(parts.hour)*3600+Number(parts.minute)*60+Number(parts.second);for(const s of [{at:9*3600+30*60,name:'9:30 AM SERVICE'},{at:11*3600+15*60,name:'11:15 AM SERVICE'}]){const remaining=s.at-secs;if(remaining>0&&remaining<=1800)return {remaining,name:s.name}}return null}
 function render(){if(mode!=='live' && previewEnd>0 && Date.now()>=previewEnd+120000){mode='live';previewEnd=0;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode==='live'));}const now=new Date();const formatted=clockFmt.format(now);const match=formatted.match(/^(.*?)\s*(AM|PM)$/i);timeEl.innerHTML=match?`${match[1]}<span class="ampm">${match[2]}</span>`:formatted;dateEl.textContent=dateFmt.format(now);let active=null;if(mode==='live'){active=getSundayCountdown(now)}else{const remaining=Math.max(0,Math.ceil((previewEnd-Date.now())/1000));active={remaining,name:mode==='930'?'9:30 AM SERVICE':mode==='1115'?'11:15 AM SERVICE':'TEST COUNTDOWN'};}const welcoming=mode==='live'?getSundayWelcome(now):(previewEnd>0&&Date.now()>=previewEnd&&Date.now()<previewEnd+120000);document.body.classList.toggle('welcoming',welcoming);document.body.classList.toggle('counting',!!active&&!welcoming);if(active){const m=Math.floor(active.remaining/60),s=active.remaining%60;countEl.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;serviceEl.textContent=active.name}}
 for(const button of document.querySelectorAll('[data-mode]'))button.addEventListener('click',()=>{mode=button.dataset.mode;if(mode!=='live'){const duration=mode==='test'?60:mode==='930'?18*60:24*60;previewEnd=Date.now()+duration*1000}document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b===button));document.body.classList.remove('show-controls');render()});
-document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='t'&&!e.ctrlKey&&!e.altKey&&!e.metaKey){document.body.classList.toggle('show-controls');}if(e.key==='Escape'){document.body.classList.remove('show-controls');}});
+// Google TV remote: press Up, Up, Down, Down, then OK/Select to open controls.
+let remoteSequence=[];
+const remoteUnlock=['ArrowUp','ArrowUp','ArrowDown','ArrowDown','Enter'];
+document.addEventListener('keydown',event=>{
+  const key=event.key==='Select'?'Enter':event.key;
+  if(remoteUnlock.includes(key)){
+    remoteSequence.push(key);
+    remoteSequence=remoteSequence.slice(-remoteUnlock.length);
+    if(remoteSequence.join('|')===remoteUnlock.join('|')){
+      document.body.classList.toggle('show-controls');
+      remoteSequence=[];
+      event.preventDefault();
+    }
+  }else{
+    remoteSequence=[];
+  }
+});
+// Alternate touchscreen/mouse access: tap or click upper-right corner five times.
+let cornerClicks=0,cornerLast=0;
+const corner=document.createElement('div');
+corner.setAttribute('aria-label','Hidden testing controls access');
+corner.style.cssText='position:fixed;top:0;right:0;width:9vw;height:12vh;z-index:2;background:transparent;';
+document.body.appendChild(corner);
+corner.addEventListener('click',()=>{
+  const now=Date.now();
+  cornerClicks=(now-cornerLast>2500)?1:cornerClicks+1;
+  cornerLast=now;
+  if(cornerClicks>=5){document.body.classList.toggle('show-controls');cornerClicks=0;}
+});
+document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='t'&&!e.ctrlKey&&!e.altKey&&!e.metaKey){document.body.classList.toggle('show-controls');}if(e.key==='Escape'||e.key==='Backspace'){document.body.classList.remove('show-controls');}});
 render();setInterval(render,250);
 </script></body></html>
